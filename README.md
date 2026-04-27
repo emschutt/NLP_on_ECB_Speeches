@@ -14,12 +14,13 @@ The full workflow is in [`nlp_ecb_v0.ipynb`](nlp_ecb_v0.ipynb). A clean rerun wr
 | Pessimism summary | [`outputs/tables/pessimism_summary.csv`](outputs/tables/pessimism_summary.csv) |
 | Market reaction summary | [`outputs/tables/market_reaction_summary.csv`](outputs/tables/market_reaction_summary.csv) |
 | Regression results | [`outputs/tables/regression_results.csv`](outputs/tables/regression_results.csv) |
+| Link manifest | [`outputs/tables/link_manifest.csv`](outputs/tables/link_manifest.csv) |
 
 ## Methodology
 
 | Stage | Method | Output |
 | --- | --- | --- |
-| Statement discovery | Query the ECB public AddSearch index for monetary policy statement pages | Candidate ECB statement links |
+| Statement discovery | Use Chrome/Selenium to render and scroll the dynamic ECB monetary policy statement index | Candidate ECB statement links |
 | Page extraction | Download each ECB HTML page with `requests` and parse it with BeautifulSoup | Date, title, link, statement text |
 | Corpus filtering | Keep English statement pages with year-based URLs and remove known non-standard pages | Chronological statement dataset |
 | Text cleaning | Lowercase, remove Q&A sections, strip punctuation/numbers, remove stopwords, stem words | `clean_text` |
@@ -28,7 +29,7 @@ The full workflow is in [`nlp_ecb_v0.ipynb`](nlp_ecb_v0.ipynb). A clean rerun wr
 | Event study | Constant-mean model on Euro Stoxx 50 log returns, event window -5 to +5 | `CAR`, `ABS_CAR` |
 | Regression | OLS with HC1 robust standard errors | Market-reaction model |
 
-The executed sample contains 192 final ECB statements after filtering. The public ECB search index currently returns an uneven historical sample, especially before 2007, so the output tables should be treated as the reproducible sample for this run.
+The executed sample contains 274 final ECB statements after filtering. The Chrome-rendered collector restores the early-history coverage that was missing from the temporary AddSearch-only run.
 
 ![ECB statements by year](outputs/figures/documents_by_year.png)
 
@@ -42,13 +43,13 @@ Jaccard similarity = shared bigrams / total unique bigrams
 
 | statistic | value |
 | --- | --- |
-| count | 192.0 |
-| mean | 0.3299 |
-| std | 0.1373 |
+| count | 274.0 |
+| mean | 0.293 |
+| std | 0.1464 |
 | min | 0.0 |
-| 25% | 0.2629 |
-| 50% | 0.3349 |
-| 75% | 0.4149 |
+| 25% | 0.1645 |
+| 50% | 0.3004 |
+| 75% | 0.3995 |
 | max | 0.7333 |
 
 ![Similarity over time](outputs/figures/similarity_over_time.png)
@@ -61,8 +62,8 @@ pessimism = ((negative words - positive words) / total words) * 100
 
 | measure | mean | std | min | median | max |
 | --- | --- | --- | --- | --- | --- |
-| Raw LM | 0.7598 | 1.4488 | -3.972 | 0.7003 | 4.2391 |
-| ECB-cleaned LM | 0.0011 | 1.277 | -4.6729 | 0.0 | 3.3333 |
+| Raw LM | 0.3718 | 1.5468 | -3.972 | 0.4156 | 4.2391 |
+| ECB-cleaned LM | -0.4183 | 1.4394 | -4.6729 | -0.3401 | 3.3333 |
 
 ![Pessimism over time](outputs/figures/pessimism_over_time.png)
 
@@ -72,13 +73,13 @@ The event-study outcome is the absolute cumulative abnormal return around each s
 
 | statistic | CAR | ABS_CAR_percent |
 | --- | --- | --- |
-| count | 160.0 | 160.0 |
-| mean | -0.0015 | 3.38 |
-| std | 0.0514 | 3.8713 |
+| count | 169.0 | 169.0 |
+| mean | -0.0002 | 3.3702 |
+| std | 0.0509 | 3.8067 |
 | min | -0.3395 | 0.0066 |
-| 25% | -0.021 | 1.2929 |
-| median | 0.0022 | 2.4278 |
-| 75% | 0.027 | 4.1915 |
+| 25% | -0.0204 | 1.3055 |
+| median | 0.0036 | 2.4578 |
+| 75% | 0.0273 | 4.1723 |
 | max | 0.1328 | 33.948 |
 
 ![Absolute CAR over time](outputs/figures/abs_car_over_time.png)
@@ -98,10 +99,10 @@ ABS_CAR = beta0
 
 | sample | interaction coefficient | p-value | nobs | R-squared |
 | --- | ---: | ---: | ---: | ---: |
-| Full sample | 0.4835 | 0.4855 | 159 | 0.1211 |
-| Full sample, strict log | -0.2344 | 0.2276 | 159 | 0.1259 |
-| Paper sample, 1999-2013 | 2.7595 | 0.0612 | 68 | 0.0877 |
-| Paper sample, strict log | -0.5443 | 0.1881 | 68 | 0.0779 |
+| Full sample | 0.2235 | 0.7332 | 168 | 0.1175 |
+| Full sample, strict log | -0.2222 | 0.2453 | 168 | 0.1226 |
+| Paper sample, 1999-2013 | 2.651 | 0.0617 | 69 | 0.0864 |
+| Paper sample, strict log | -0.5339 | 0.1967 | 69 | 0.0768 |
 
 Full coefficient tables are saved in [`outputs/tables/regression_results.csv`](outputs/tables/regression_results.csv).
 
@@ -111,7 +112,7 @@ Full coefficient tables are saved in [`outputs/tables/regression_results.csv`](o
 
 | Finding | Interpretation |
 | --- | --- |
-| ECB statements are textually persistent | The median statement shares roughly one third of its bigrams with the previous statement. |
+| ECB statements are textually persistent | The median statement shares about 30% of its unique bigrams with the previous statement. |
 | Raw dictionary tone needs context | Central-bank terms such as `risk`, `liquidity`, `objective`, and `easing` can distort generic financial sentiment scores. |
 | Market reactions are skewed | Median absolute CAR is modest, but the maximum event reaction is much larger. |
 | Full-sample communication effect is weak | The main interaction is positive but not statistically significant in the full rerun sample. |
@@ -129,7 +130,7 @@ Overall, ECB language contains measurable information, but dictionary tone and t
 
 | Extension | Why it matters |
 | --- | --- |
-| Save a fixed link manifest | The ECB search index changes over time; a manifest would lock the exact corpus for replication. |
+| Save and reuse a fixed link manifest | The dynamic ECB page can change over time; a manifest locks the exact corpus for replication. |
 | Use intraday returns | Daily event windows can include unrelated news; intraday data would isolate ECB communication more cleanly. |
 | Add monetary policy surprise controls | Market reactions should depend on unexpected policy news, not only statement wording. |
 | Compare dictionary sentiment with transformer sentiment | FinBERT or a central-bank-specific model may classify tone more accurately. |
@@ -152,4 +153,4 @@ To regenerate the notebook and outputs:
 /opt/anaconda3/bin/python -m nbconvert --execute --to notebook --inplace nlp_ecb_v0.ipynb --ExecutePreprocessor.timeout=1200
 ```
 
-External data sources include the ECB website/search index, Yahoo Finance through `yfinance`, FRED through `pandas_datareader`, and the local Loughran-McDonald dictionary CSV.
+External data sources include the ECB website rendered through Chrome/Selenium, Yahoo Finance through `yfinance`, FRED through `pandas_datareader`, and the local Loughran-McDonald dictionary CSV.
