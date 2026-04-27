@@ -1,125 +1,91 @@
 # NLP on ECB Speeches
 
-This project studies how European Central Bank monetary policy statements changed over time, and whether those communication patterns are related to financial market reactions. It replicates and extends the text-as-data logic of Amaya and Filbien (2015) by scraping ECB press conference statements, measuring textual similarity and pessimism, and linking those measures to Euro Stoxx 50 event-window returns.
+This project studies European Central Bank monetary policy statements as text data and links communication patterns to financial market reactions. It replicates and extends the intuition of Amaya and Filbien (2015): central bank language can be measured, and changes in tone or repetition may help explain how markets react around policy events.
 
-The full workflow is implemented in [`nlp_ecb_v0.ipynb`](nlp_ecb_v0.ipynb).
+The full workflow is in [`nlp_ecb_v0.ipynb`](nlp_ecb_v0.ipynb). A clean rerun writes all reusable outputs to [`outputs/`](outputs/).
 
-## Project Overview
+## Outputs
 
-| Component | Description |
+| Artifact | Path |
 | --- | --- |
-| Corpus | ECB monetary policy statement / introductory statement pages |
-| Main sample | 1999-2026 scraped statements, with 1998 and known non-standard pages removed |
-| Text measures | Jaccard similarity on binary bigrams and Loughran-McDonald pessimism |
-| Market measure | Euro Stoxx 50 cumulative abnormal return around statement dates |
-| Controls | Policy rate change, inflation, and output gap |
-| Main question | Do more pessimistic and textually similar ECB statements produce stronger market reactions? |
+| Final analysis dataset | [`outputs/tables/analysis_dataset.csv`](outputs/tables/analysis_dataset.csv) |
+| Documents by year | [`outputs/tables/documents_by_year.csv`](outputs/tables/documents_by_year.csv) |
+| Similarity summary | [`outputs/tables/similarity_summary.csv`](outputs/tables/similarity_summary.csv) |
+| Pessimism summary | [`outputs/tables/pessimism_summary.csv`](outputs/tables/pessimism_summary.csv) |
+| Market reaction summary | [`outputs/tables/market_reaction_summary.csv`](outputs/tables/market_reaction_summary.csv) |
+| Regression results | [`outputs/tables/regression_results.csv`](outputs/tables/regression_results.csv) |
 
 ## Methodology
 
-### 1. Data Collection
-
-ECB statement links are collected from the ECB monetary policy statement index using Selenium. Each statement page is then downloaded with `requests`, parsed with BeautifulSoup, and converted into a structured dataset containing the statement link, title, date, year, and extracted text content.
-
-| Step | Method | Output |
+| Stage | Method | Output |
 | --- | --- | --- |
-| Link discovery | Selenium scroll + anchor extraction | Candidate ECB statement URLs |
-| Page parsing | BeautifulSoup over ECB HTML pages | Raw statement text, title, date |
-| Filtering | Remove 1998 and manually identified intruder links | Chronological statement corpus |
-| Validation | Date sorting and URL assertions | Clean analysis dataframe |
+| Statement discovery | Query the ECB public AddSearch index for monetary policy statement pages | Candidate ECB statement links |
+| Page extraction | Download each ECB HTML page with `requests` and parse it with BeautifulSoup | Date, title, link, statement text |
+| Corpus filtering | Keep English statement pages with year-based URLs and remove known non-standard pages | Chronological statement dataset |
+| Text cleaning | Lowercase, remove Q&A sections, strip punctuation/numbers, remove stopwords, stem words | `clean_text` |
+| Similarity | Jaccard similarity on binary bigrams versus the previous statement | `similarity_sklearn` |
+| Pessimism | Loughran-McDonald dictionary score, then ECB-specific kill-list cleaning | `pessimism_raw`, `pessimism_final` |
+| Event study | Constant-mean model on Euro Stoxx 50 log returns, event window -5 to +5 | `CAR`, `ABS_CAR` |
+| Regression | OLS with HC1 robust standard errors | Market-reaction model |
 
-### 2. Text Preprocessing
+The executed sample contains 192 final ECB statements after filtering. The public ECB search index currently returns an uneven historical sample, especially before 2007, so the output tables should be treated as the reproducible sample for this run.
 
-Text is lowercased, Q&A sections are removed where detected, punctuation and numbers are stripped, stopwords are removed, and tokens are stemmed with the Porter stemmer. The tokenizer intentionally uses simple whitespace splitting after regex normalization, so the notebook does not depend on NLTK `punkt` downloads.
+![ECB statements by year](outputs/figures/documents_by_year.png)
 
-| Cleaning Choice | Reason |
-| --- | --- |
-| Remove Q&A markers | Focuses on the prepared monetary policy statement rather than journalist exchange |
-| Keep alphabetic text, apostrophes, hyphens | Preserves economically relevant terms while removing formatting noise |
-| Remove stopwords | Reduces common English terms that do not carry policy tone |
-| Stem tokens | Aligns statement vocabulary with stemmed dictionary entries |
+## Text Measures
 
-### 3. Similarity Measure
-
-Statement similarity is computed against the immediately previous statement. The project uses binary bigram vectors and Jaccard similarity:
+Similarity is measured as the overlap in bigrams between each statement and the immediately previous statement:
 
 ```text
-similarity(i, i-1) = shared bigrams / total unique bigrams across both statements
+Jaccard similarity = shared bigrams / total unique bigrams
 ```
 
-This captures how much each statement repeats the wording of the prior policy communication.
+| statistic | value |
+| --- | --- |
+| count | 192.0 |
+| mean | 0.3299 |
+| std | 0.1373 |
+| min | 0.0 |
+| 25% | 0.2629 |
+| 50% | 0.3349 |
+| 75% | 0.4149 |
+| max | 0.7333 |
 
-| Similarity Statistic | Value |
-| --- | ---: |
-| Mean | 0.2930 |
-| Standard deviation | 0.1464 |
-| Minimum | 0.0000 |
-| Median | 0.3004 |
-| Maximum | 0.7333 |
+![Similarity over time](outputs/figures/similarity_over_time.png)
 
-```mermaid
-xychart-beta
-    title "Similarity Distribution Summary"
-    x-axis ["Min", "25%", "Median", "75%", "Max"]
-    y-axis "Jaccard similarity" 0 --> 0.8
-    bar [0.0000, 0.1645, 0.3004, 0.3995, 0.7333]
-```
-
-### 4. Pessimism Measure
-
-Pessimism is measured with the Loughran-McDonald financial sentiment dictionary:
+Pessimism is computed as:
 
 ```text
 pessimism = ((negative words - positive words) / total words) * 100
 ```
 
-The project first computes a raw dictionary score, then cleans the dictionary for ECB-specific false positives and false negatives. For example, terms such as `risk`, `liquidity`, `objective`, `easing`, and `press` can be technically neutral in ECB communication even though they may appear sentiment-bearing in a general financial dictionary.
+| measure | mean | std | min | median | max |
+| --- | --- | --- | --- | --- | --- |
+| Raw LM | 0.7598 | 1.4488 | -3.972 | 0.7003 | 4.2391 |
+| ECB-cleaned LM | 0.0011 | 1.277 | -4.6729 | 0.0 | 3.3333 |
 
-| Pessimism Measure | Mean | Std. Dev. | Min | Median | Max |
-| --- | ---: | ---: | ---: | ---: | ---: |
-| Raw LM | 0.3718 | 1.5468 | -3.9720 | 0.4156 | 4.2391 |
-| ECB-cleaned LM | -0.4183 | 1.4394 | -4.6729 | -0.3401 | 3.3333 |
+![Pessimism over time](outputs/figures/pessimism_over_time.png)
 
-```mermaid
-xychart-beta
-    title "Raw vs ECB-Cleaned Pessimism"
-    x-axis ["Mean", "Median", "Min", "Max"]
-    y-axis "Pessimism score" -5 --> 5
-    bar [0.3718, 0.4156, -3.9720, 4.2391]
-    bar [-0.4183, -0.3401, -4.6729, 3.3333]
-```
+## Market Reaction
 
-### 5. Event Study
+The event-study outcome is the absolute cumulative abnormal return around each statement date. Expected returns are estimated with a constant-mean model over trading days -250 to -50, and abnormal returns are summed over days -5 to +5.
 
-Market reactions are measured with Euro Stoxx 50 log returns. For each ECB statement date, the project computes cumulative abnormal returns using a constant-mean expected return model.
+| statistic | CAR | ABS_CAR_percent |
+| --- | --- | --- |
+| count | 160.0 | 160.0 |
+| mean | -0.0015 | 3.38 |
+| std | 0.0514 | 3.8713 |
+| min | -0.3395 | 0.0066 |
+| 25% | -0.021 | 1.2929 |
+| median | 0.0022 | 2.4278 |
+| 75% | 0.027 | 4.1915 |
+| max | 0.1328 | 33.948 |
 
-| Event-Study Setting | Value |
-| --- | --- |
-| Asset | Euro Stoxx 50 (`^STOXX50E`) |
-| Expected return model | Constant mean return |
-| Estimation window | -250 to -50 trading days |
-| Event window | -5 to +5 trading days |
-| Outcome variable | `ABS_CAR = abs(CAR) * 100` |
+![Absolute CAR over time](outputs/figures/abs_car_over_time.png)
 
-| Market-Reaction Statistic | CAR | \|CAR\| (%) |
-| --- | ---: | ---: |
-| Observations | 169 | 169 |
-| Mean | -0.0002 | 3.3702 |
-| Standard deviation | 0.0509 | 3.8067 |
-| Median | 0.0036 | 2.4578 |
-| Maximum | 0.1328 | 33.9480 |
+## Regression
 
-```mermaid
-xychart-beta
-    title "Absolute Market Reaction Summary"
-    x-axis ["25%", "Median", "75%", "Max"]
-    y-axis "|CAR| (%)" 0 --> 35
-    bar [1.3055, 2.4578, 4.1723, 33.9480]
-```
-
-### 6. Regression Design
-
-The final regression tests whether the interaction between pessimism and similarity explains the absolute market reaction, controlling for policy and macroeconomic conditions:
+The main regression tests whether markets react more strongly when statements are both pessimistic and similar to previous communication:
 
 ```text
 ABS_CAR = beta0
@@ -130,75 +96,60 @@ ABS_CAR = beta0
         + error
 ```
 
-Heteroskedasticity-robust standard errors are used.
+| sample | interaction coefficient | p-value | nobs | R-squared |
+| --- | ---: | ---: | ---: | ---: |
+| Full sample | 0.4835 | 0.4855 | 159 | 0.1211 |
+| Full sample, strict log | -0.2344 | 0.2276 | 159 | 0.1259 |
+| Paper sample, 1999-2013 | 2.7595 | 0.0612 | 68 | 0.0877 |
+| Paper sample, strict log | -0.5443 | 0.1881 | 68 | 0.0779 |
 
-| Full-Sample Regression Result | Coefficient | p-value |
-| --- | ---: | ---: |
-| Interaction: pessimism x similarity | 0.2235 | 0.733 |
-| Policy rate change (`DELTA_MRO`) | -3.1335 | 0.142 |
-| Inflation | 0.3314 | 0.111 |
-| Output gap | -0.6622 | 0.218 |
-| Observations | 168 |  |
-| R-squared | 0.117 |  |
+Full coefficient tables are saved in [`outputs/tables/regression_results.csv`](outputs/tables/regression_results.csv).
 
-| Paper-Sample Check: 1999-2013 | Coefficient | p-value |
-| --- | ---: | ---: |
-| Interaction: pessimism x similarity | 2.6510 | 0.062 |
-| Policy rate change (`DELTA_MRO`) | -1.0816 | 0.817 |
-| Inflation | 0.6496 | 0.331 |
-| Output gap | -0.2940 | 0.575 |
-| Observations | 69 |  |
-| R-squared | 0.086 |  |
-
-```mermaid
-xychart-beta
-    title "Interaction Coefficient by Sample"
-    x-axis ["Full sample", "1999-2013"]
-    y-axis "Coefficient" 0 --> 3
-    bar [0.2235, 2.6510]
-```
+![Interaction coefficients](outputs/figures/interaction_coefficients.png)
 
 ## Main Findings
 
 | Finding | Interpretation |
 | --- | --- |
-| ECB statements show meaningful wording persistence | The median statement shares about 30% of its unique bigrams with the previous statement. |
-| Raw sentiment needs central-bank-specific cleaning | Generic financial dictionaries can misclassify neutral ECB terms such as liquidity, objective, risk, and easing. |
-| Market reaction is skewed | The median absolute CAR is moderate, but the maximum event reaction is much larger, indicating occasional high-impact meetings. |
-| Full-sample text interaction is not statistically significant | In the extended sample, the pessimism-similarity interaction does not robustly explain absolute market reactions. |
-| Earlier sample gives a stronger signal | In the 1999-2013 check, the interaction coefficient is positive and marginally significant, closer to the paper-style interpretation. |
+| ECB statements are textually persistent | The median statement shares roughly one third of its bigrams with the previous statement. |
+| Raw dictionary tone needs context | Central-bank terms such as `risk`, `liquidity`, `objective`, and `easing` can distort generic financial sentiment scores. |
+| Market reactions are skewed | Median absolute CAR is modest, but the maximum event reaction is much larger. |
+| Full-sample communication effect is weak | The main interaction is positive but not statistically significant in the full rerun sample. |
+| Earlier sample is more suggestive | The 1999-2013 interaction is positive and marginally significant, closer to the paper-style hypothesis. |
 
 ## Conclusion
 
-The project shows that ECB communication can be quantified in a transparent and reproducible way using relatively simple NLP tools. Similarity captures the degree of continuity in ECB language, while the cleaned Loughran-McDonald pessimism score gives a central-bank-adjusted measure of communication tone.
+The project shows that ECB communication can be transformed into transparent, reproducible text measures. Similarity captures continuity in policy language, while the cleaned Loughran-McDonald pessimism score gives a more ECB-aware tone measure than the raw dictionary.
 
-The strongest evidence appears in the earlier paper-style sample, where the interaction between pessimism and similarity is positive and close to conventional significance. In the broader extension sample, however, the same relationship weakens. This suggests that the communication-market reaction link may be period-dependent, potentially reflecting changes in ECB communication strategy, forward guidance, market expectations, unconventional policy, and post-2014 monetary policy regimes.
+The market-reaction evidence is mixed. In the full rerun sample, the pessimism-similarity interaction is not statistically significant. In the 1999-2013 sample, the interaction is positive and marginally significant, suggesting that the relationship between central bank wording and market reaction may be regime-dependent.
 
-Overall, the analysis supports the idea that central bank communication contains measurable information, but it also shows that dictionary-based tone and repetition alone are not enough to fully explain market reactions across the modern ECB era.
+Overall, ECB language contains measurable information, but dictionary tone and textual repetition alone do not fully explain market reactions across the modern policy period.
 
 ## Extensions
 
-| Extension | Why It Matters |
+| Extension | Why it matters |
 | --- | --- |
-| Use intraday financial data | Daily windows may mix ECB effects with unrelated market news; intraday returns would isolate announcement effects better. |
-| Add topic modeling | Similarity can be high because of repeated boilerplate or because the same economic topic persists; topics would separate these channels. |
-| Use sentence-level sentiment | Some statements combine optimistic and pessimistic sections; sentence aggregation could capture nuance. |
-| Compare dictionary sentiment with transformer models | FinBERT or central-bank-specific language models may classify ECB tone better than word lists. |
-| Model regime changes | Pre-crisis, sovereign debt crisis, low-rate, pandemic, and inflation-surge periods may have different communication effects. |
-| Add surprise controls | Market reactions should depend on the unexpected part of policy and language, not only the observed statement text. |
-| Export intermediate datasets | Saving cleaned statements, text scores, CARs, and macro controls would make the project easier to audit and reuse. |
+| Save a fixed link manifest | The ECB search index changes over time; a manifest would lock the exact corpus for replication. |
+| Use intraday returns | Daily event windows can include unrelated news; intraday data would isolate ECB communication more cleanly. |
+| Add monetary policy surprise controls | Market reactions should depend on unexpected policy news, not only statement wording. |
+| Compare dictionary sentiment with transformer sentiment | FinBERT or a central-bank-specific model may classify tone more accurately. |
+| Add topic models | Similarity may reflect boilerplate or persistent economic topics; topic models can separate these channels. |
+| Model regimes separately | Crisis, low-rate, pandemic, and inflation-surge periods likely have different communication effects. |
 
-## Reproducibility Notes
+## Reproducibility
 
-The notebook uses online sources, so some results can change as providers update data:
+The notebook now creates the output folder automatically:
 
-| Dependency | Role |
-| --- | --- |
-| ECB website | Statement links and text |
-| Yahoo Finance / `yfinance` | Euro Stoxx 50 prices |
-| FRED / `pandas_datareader` | Policy rate, inflation, GDP macro controls |
-| Loughran-McDonald dictionary | Financial sentiment word lists |
-| `scikit-learn` | Bigram vectorization |
-| `statsmodels` | OLS regression and robust standard errors |
+```text
+outputs/
+  figures/
+  tables/
+```
 
-For a more stable replication package, the next step should be to save versioned CSV outputs after each major stage of the pipeline.
+To regenerate the notebook and outputs:
+
+```bash
+/opt/anaconda3/bin/python -m nbconvert --execute --to notebook --inplace nlp_ecb_v0.ipynb --ExecutePreprocessor.timeout=1200
+```
+
+External data sources include the ECB website/search index, Yahoo Finance through `yfinance`, FRED through `pandas_datareader`, and the local Loughran-McDonald dictionary CSV.
