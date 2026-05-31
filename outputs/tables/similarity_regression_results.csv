@@ -1,0 +1,17 @@
+sample,term,coefficient,std_error,p_value,nobs,r_squared,adjusted_r_squared
+Paper: controls only,const,-1.4935,0.1588,0.0,172,0.0019,-0.016
+Paper: controls only,OUTPUT_GAP,0.0107,0.0405,0.7913,172,0.0019,-0.016
+Paper: controls only,INFLATION,-0.0397,0.0692,0.5661,172,0.0019,-0.016
+Paper: controls only,DELTA_MRO,-0.0348,0.3059,0.9095,172,0.0019,-0.016
+Paper: log time only,const,-4.8379,0.4281,0.0,172,0.5588,0.5562
+Paper: log time only,log_time,0.4283,0.0542,0.0,172,0.5588,0.5562
+Paper: log time + controls,const,-4.6423,0.4282,0.0,172,0.614,0.6048
+Paper: log time + controls,log_time,0.4636,0.0524,0.0,172,0.614,0.6048
+Paper: log time + controls,OUTPUT_GAP,0.1065,0.0262,0.0,172,0.614,0.6048
+Paper: log time + controls,INFLATION,-0.2263,0.0396,0.0,172,0.614,0.6048
+Paper: log time + controls,DELTA_MRO,-0.0465,0.1866,0.8034,172,0.614,0.6048
+Paper: log count + controls,const,-3.3123,0.2276,0.0,172,0.6628,0.6547
+Paper: log count + controls,log_count,0.5255,0.0455,0.0,172,0.6628,0.6547
+Paper: log count + controls,OUTPUT_GAP,0.1112,0.0252,0.0,172,0.6628,0.6547
+Paper: log count + controls,INFLATION,-0.2204,0.0384,0.0,172,0.6628,0.6547
+Paper: log count + controls,DELTA_MRO,-0.0418,0.1807,0.8171,172,0.6628,0.6547

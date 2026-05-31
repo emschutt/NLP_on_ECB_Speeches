@@ -1,0 +1,11 @@
+beautifulsoup4
+matplotlib
+nltk
+numpy
+pandas
+pandas-datareader
+requests
+scikit-learn
+statsmodels
+tqdm
+yfinance

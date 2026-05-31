@@ -1,0 +1,12 @@
+metric,paper,reproduction,note
+documents,172.0,172.0,Exact corpus count
+similarity_mean,0.24,0.2416,Close paper match
+similarity_min,0.05,0.0309,Archive/parser-sensitive; mean and maximum remain close
+similarity_max,0.55,0.5452,Close paper match
+abs_car_mean,3.28,3.4378,Public SX5E proxy replaces licensed Datastream series
+pessimism_mean,-0.26,0.152,Current LM dictionary differs from the paper-era list
+inflation_mean,2.03,2.0598,Close paper match
+output_gap_mean,0.33,0.0064,HP-filter proxy differs from European Commission series
+delta_mro_changes,33.0,33.0,Exact announcement distribution
+trend_log_time_coefficient,0.493,0.4636,Close directional match with public controls
+market_interaction_coefficient,-0.243,-0.2212,Close paper match
